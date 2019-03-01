@@ -9,12 +9,12 @@ from tensorflow.examples.tutorials.mnist import input_data
 
 #Definition of the constants
 n_feature = 28*28
+early_stop_step=6
 n_output = 10
 hd_nuer = [300,100,n_output]
-# layer = np.r_[n_feature,hd_nuer]
-lr=0.1
-n_epoch=20
-batch_size=80
+lr=0.01
+n_epoch=100
+batch_size=8000
 mnist = input_data.read_data_sets("/tmp/data/")
 
 #Tensorflow graph construction
@@ -28,8 +28,7 @@ for i in range(1,len(hd_nuer)-1):
 logits = fully_connected(hidden,hd_nuer[len(hd_nuer)-1],activation_fn=None)
 xentry=tf.nn.sparse_softmax_cross_entropy_with_logits(labels=Y,logits=logits)
 loss = tf.reduce_sum(xentry,axis=0)
-# mse = tf.sqrt(tf.reduce_sum(tf.square(d-hidden),axis=0))
-optimizer = tf.train.GradientDescentOptimizer(learning_rate=lr)
+optimizer = tf.train.AdamOptimizer(learning_rate=lr)
 training_op = optimizer.minimize(loss)
 correct=tf.nn.in_top_k(logits,Y,1)
 al_in = tf.reduce_mean(tf.cast(correct,tf.float32))
@@ -39,16 +38,26 @@ saver = tf.train.Saver()
 #Tensorflow graph execution
 with tf.Session() as sess:
 	sess.run(init)
-	# logits_val = xentry.eval(feed_dict={X:x[1:3,:],Y:y[1:3]})
-	# print(logits_val.shape)
+	# # logits_val = X.eval(feed_dict={X:x[1:3,:],Y:y[1:3]})
+	# X_batch, y_batch = mnist.train.next_batch(batch_size)
+	# print(X_batch)
+	best_val=0
+	step=0
+	ep = 0
 	for ep in range(n_epoch):
-		rand_inx = np.random.permutation(len(x))
-		x=x[rand_inx]
-		for iteration in range(mnist.train.num_examples // batch_size):
+		for iteration in range(50):
 			X_batch, y_batch = mnist.train.next_batch(batch_size)
-			sess.run(training_op, feed_dict={X: X_batch, y: y_batch})
-			acc_train = accuracy.eval(feed_dict={X: X_batch, y: y_batch})
-			acc_test = accuracy.eval(feed_dict={X: mnist.test.images,y: mnist.test.labels})
-		print(ep, "Train accuracy:", acc_train, "Test accuracy:", acc_test)
+			sess.run(training_op, feed_dict={X: X_batch, Y: y_batch})
+			acc_train = al_in.eval(feed_dict={X: X_batch,Y: y_batch})
+			acc_test = al_in.eval(feed_dict={X: mnist.test.images,Y: mnist.test.labels})
+			print(step,"\t",ep, "Train accuracy:", acc_train, "Test accuracy:", acc_test)
+			if step>early_stop_step:break
+			if (acc_test >= best_val):
+				best_val=acc_test
+				step=0
+			else:
+				step+=1
+		if step>early_stop_step:break
+		ep+=1
 	save_path=saver.save(sess,"./mnist_class.ckpt")
 	sess.close()
